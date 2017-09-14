@@ -11,7 +11,6 @@ this file and include it in basic-server.js so that it actually works.
 *Hint* Check out the node module documentation at http://nodejs.org/api/modules.html.
 
 **************************************************************/
-var path = require('path');
 var url = require('url');
 
 // These headers will allow Cross-Origin Resource Sharing (CORS).
@@ -30,10 +29,10 @@ var defaultCorsHeaders = {
   'access-control-max-age': 10 // Seconds.
 };
 
+var state = [];
+
 var utils = {
   respond: function(response, data, status) {
-    var headers = defaultCorsHeaders;
-    headers['Content-Type'] = 'application/json';
     response.writeHead(status || 200, defaultCorsHeaders);
     response.end(data);
   },
@@ -54,36 +53,29 @@ var actions = {
   },
 
   'GET': function(request, response) {
-    var data = JSON.stringify({results: []});
+    var headers = defaultCorsHeaders;
+    headers['Content-Type'] = 'application/json';
+    var data = JSON.stringify({results: state});
     utils.respond(response, data, 200);
   },
 
   'POST': function(request, response) {
+    var headers = defaultCorsHeaders;
+    headers['Content-Type'] = 'application/json';
     var data = '';
     request.on('data', function(chunk) {
       data += chunk;
+    });
+    request.on('end', function() {
+      state.push(JSON.parse(data));
     });
     utils.respond(response, data, 201);
   }
 };
 
 var requestHandler = function(request, response) {
-  // Request and Response come from node's http module.
-  //
-  // They include information about both the incoming request, such as
-  // headers and URL, and about the outgoing response, such as its status
-  // and content.
-  //
-  // Documentation for both request and response can be found in the HTTP section at
-  // http://nodejs.org/documentation/api/
-
-  // Do some basic logging.
-  //
-  // Adding more logging to your server can be an easy way to get passive
-  // debugging help, but you should always be careful about leaving stray
-  // console.logs in your code.
-  console.log('Serving request type ' + request.method + ' for url ' + request.url);
-
+  // console.log('Serving request type ' + request.method + ' for url ' + request.url);
+  
   var parsedURL = url.parse(request.url);
   if (parsedURL.pathname !== '/classes/messages') {
     utils.respond404(response);
@@ -93,4 +85,4 @@ var requestHandler = function(request, response) {
   action ? action(request, response) : utils.respond404();
 };
 
-module.exports = requestHandler;
+module.exports.requestHandler = requestHandler;
