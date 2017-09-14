@@ -26,14 +26,15 @@ var defaultCorsHeaders = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'access-control-allow-headers': 'content-type, accept',
-  'access-control-max-age': 10 // Seconds.
+  'access-control-max-age': 10, // Seconds.
 };
 
 var state = [];
+var id = 0;
 
 var utils = {
-  respond: function(response, data, status) {
-    response.writeHead(status, defaultCorsHeaders);
+  respond: function(response, data, status, headers) {
+    response.writeHead(status, headers);
     response.end(data);
   },
 
@@ -43,6 +44,11 @@ var utils = {
 
   respondBadRequest: function(response) {
     utils.respond(response, 'BAD REQUEST', 400);
+  },
+
+  redirect: function(response, status, headers) {
+    response.writeHead(status, headers);
+    response.end('CREATED');
   }
 };
 
@@ -56,26 +62,23 @@ var actions = {
     var headers = defaultCorsHeaders;
     headers['Content-Type'] = 'application/json';
     var data = JSON.stringify({results: state});
-    utils.respond(response, data, 200);
+    utils.respond(response, data, 200, headers);
   },
 
   'POST': function(request, response) {
     var headers = defaultCorsHeaders;
-    headers['Content-Type'] = 'application/json';
+    headers['Location'] = '/classes/messages';
     var data = '';
     request.on('data', function(chunk) {
       data += chunk;
     });
     request.on('end', function() {
-      data = data.split('&');
-      var message = {};
-      data.forEach(function(datum) {
-        var tuple = datum.split('=');
-        message[datum[0]] = datum[1];
-      });
+      data = JSON.parse(data);
+      data.roomname = data.roomname || 'lobby';
+      data.objectId = id++;
       state.push(data);
+      utils.redirect(response, 201, headers);
     });
-    utils.respond(response, data, 201);
   }
 };
 
@@ -85,10 +88,10 @@ var requestHandler = function(request, response) {
   var parsedURL = url.parse(request.url);
   if (parsedURL.pathname !== '/classes/messages') {
     utils.respond404(response);
+  } else {
+    var action = actions[request.method];
+    action ? action(request, response) : utils.respond404();
   }
-
-  var action = actions[request.method];
-  action ? action(request, response) : utils.respond404();
 };
 
 module.exports.requestHandler = requestHandler;
