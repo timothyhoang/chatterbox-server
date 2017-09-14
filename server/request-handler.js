@@ -33,7 +33,7 @@ var state = [];
 
 var utils = {
   respond: function(response, data, status) {
-    response.writeHead(status || 200, defaultCorsHeaders);
+    response.writeHead(status, defaultCorsHeaders);
     response.end(data);
   },
 
@@ -67,7 +67,13 @@ var actions = {
       data += chunk;
     });
     request.on('end', function() {
-      state.push(JSON.parse(data));
+      data = data.split('&');
+      var message = {};
+      data.forEach(function(datum) {
+        var tuple = datum.split('=');
+        message[datum[0]] = datum[1];
+      });
+      state.push(data);
     });
     utils.respond(response, data, 201);
   }
