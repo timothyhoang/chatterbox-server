@@ -12,7 +12,7 @@ this file and include it in basic-server.js so that it actually works.
 
 **************************************************************/
 var url = require('url');
-
+var _ = require('../node_modules/underscore/underscore.js');
 // These headers will allow Cross-Origin Resource Sharing (CORS).
 // This code allows this server to talk to websites that
 // are on different domains, for instance, your chat client.
@@ -30,6 +30,7 @@ var defaultCorsHeaders = {
 };
 
 var state = [];
+var modelVariables = ['username', 'text', 'roomname', 'objectId', 'createdAt'];
 var id = 0;
 
 var utils = {
@@ -42,20 +43,36 @@ var utils = {
     utils.respond(response, 'NOT FOUND', 404);
   },
 
-  respondBadRequest: function(response) {
-    utils.respond(response, 'BAD REQUEST', 400);
+  respondMethodNotAllowed: function(response) {
+    utils.respond(response, 'METHOD NOT ALLOWED', 405);
   },
-
-  redirect: function(response, status, headers) {
-    response.writeHead(status, headers);
-    response.end('CREATED');
+  
+  getSortedState: function(response) {
+    var parsedURL = url.parse(response.url);
+    var searchParam = parsedURL.path.searchParams.get('order');
+    var order;
+    if (!searchParam) {
+      return state;  
+    } else if (searchParam[0] === '-') {
+      order = -1;
+      searchParam = searchParam.slice(1);
+    } else { 
+      order = 1;
+    }
+    
+    if (!modelVariables.includes(searchParam)) {   
+      return state;
+    } else {
+      var copy = state.slice(0);
+      return _.sortBy(copy, (message) => { return (message[searchParam]) * order; });
+    }
   }
 };
 
 var actions = {
   'OPTIONS': function(request, response) {
     var action = request.headers['access-control-request-method'];
-    (defaultCorsHeaders['access-control-allow-methods'].includes(action)) ? actions[action](request, response) : utils.respondBadRequest();
+    (defaultCorsHeaders['access-control-allow-methods'].includes(action)) ? actions[action](request, response) : utils.respondMethodNotAllowed();
   },
 
   'GET': function(request, response) {
@@ -67,7 +84,7 @@ var actions = {
 
   'POST': function(request, response) {
     var headers = defaultCorsHeaders;
-    headers['Location'] = '/classes/messages';
+    headers['Content-Type'] = 'text/plain';
     var data = '';
     request.on('data', function(chunk) {
       data += chunk;
@@ -75,16 +92,15 @@ var actions = {
     request.on('end', function() {
       data = JSON.parse(data);
       data.roomname = data.roomname || 'lobby';
-      data.objectId = id++;
+      data.objectId = ++id;
+      data.createdAt = Date.now();
       state.push(data);
-      utils.redirect(response, 201, headers);
+      utils.respond(response, 'CREATED', 201, headers);
     });
   }
 };
 
 var requestHandler = function(request, response) {
-  // console.log('Serving request type ' + request.method + ' for url ' + request.url);
-  
   var parsedURL = url.parse(request.url);
   if (parsedURL.pathname !== '/classes/messages') {
     utils.respond404(response);
