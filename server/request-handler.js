@@ -30,13 +30,40 @@ var defaultCorsHeaders = {
   'access-control-max-age': 10 // Seconds.
 };
 
+var utils = {
+  respond: function(response, data, status) {
+    var headers = defaultCorsHeaders;
+    headers['Content-Type'] = 'application/json';
+    response.writeHead(status || 200, defaultCorsHeaders);
+    response.end(data);
+  },
+
+  respond404: function(response) {
+    utils.respond(response, 'NOT FOUND', 404);
+  },
+
+  respondBadRequest: function(response) {
+    utils.respond(response, 'BAD REQUEST', 400);
+  }
+};
+
 var actions = {
+  'OPTIONS': function(request, response) {
+    var action = request.headers['access-control-request-method'];
+    (defaultCorsHeaders['access-control-allow-methods'].includes(action)) ? actions[action](request, response) : utils.respondBadRequest();
+  },
+
   'GET': function(request, response) {
-    
+    var data = JSON.stringify({results: []});
+    utils.respond(response, data, 200);
   },
 
   'POST': function(request, response) {
-
+    var data = '';
+    request.on('data', function(chunk) {
+      data += chunk;
+    });
+    utils.respond(response, data, 201);
   }
 };
 
@@ -57,33 +84,13 @@ var requestHandler = function(request, response) {
   // console.logs in your code.
   console.log('Serving request type ' + request.method + ' for url ' + request.url);
 
-  // The outgoing status.
-  var statusCode = 200;
-
-  // See the note below about CORS headers.
-  var headers = defaultCorsHeaders;
-
-  // Tell the client we are sending them plain text.
-  //
-  // You will need to change this if you are sending something
-  // other than plain text, like JSON or HTML.
-  headers['Content-Type'] = 'text/plain';
-
-  // .writeHead() writes to the request line and headers of the response,
-  // which includes the status and all headers.
-  response.writeHead(statusCode, headers);
+  var parsedURL = url.parse(request.url);
+  if (parsedURL.pathname !== '/classes/messages') {
+    utils.respond404(response);
+  }
 
   var action = actions[request.method];
-  action ? action(request, response) : console.log('404');
-
-  // Make sure to always call response.end() - Node may not send
-  // anything back to the client until you do. The string you pass to
-  // response.end() will be the body of the response - i.e. what shows
-  // up in the browser.
-  //
-  // Calling .end "flushes" the response's internal buffer, forcing
-  // node to actually send all the data over to the client.
-  response.end(JSON.stringify({results: []}));
+  action ? action(request, response) : utils.respond404();
 };
 
 module.exports = requestHandler;
